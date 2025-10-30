@@ -15,8 +15,8 @@ from screens.auth import show as show_auth
 from screens.query_input import show as show_query_input
 from screens.product_loader import show as show_product_loader
 from screens.preprocessing import show as show_preprocessing
-from screens.rag_simulation import show as show_rag_simulation      # ← новый экран: RAG-имитация
-# from screens.llm_response import show as show_llm_response         # ← новый экран: ответ LLM
+from screens.rag_simulation import show as show_rag_simulation
+from screens.llm_response import show as show_llm_response
 
 # Инициализация состояния экрана
 if "screen" not in st.session_state:
@@ -47,9 +47,9 @@ elif current_screen == "preprocessing":
 elif current_screen == "rag_simulation":
     # Шаг 6: RAG-имитация — семантический отбор и формирование промпта
     show_rag_simulation()
-# elif current_screen == "llm_response":
-#     # Шаг 7: Генерация и показ финального ответа от LLM (пока мок)
-#     show_llm_response()
+elif current_screen == "llm_response":
+    # Шаг 7: Генерация и показ финального ответа от LLM (пока мок)
+    show_llm_response()
 else:
     # На случай ошибки — возврат к началу
     st.session_state["screen"] = "profile_loader"

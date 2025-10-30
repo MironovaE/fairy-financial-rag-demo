@@ -1,14 +1,7 @@
 # screens/rag_simulation.py
 import streamlit as st
 import os
-import torch, transformers, sentence_transformers
-st.write(f"torch: {torch.__version__}")
-st.write(f"transformers: {transformers.__version__}")
-st.write(f"sentence-transformers: {sentence_transformers.__version__}")
-
-import sentence_transformers
-st.write(f"✅ torch версия: {torch.__version__}")
-st.write(f"✅ sentence-transformers версия: {sentence_transformers.__version__}")
+import torch
 
 # Отключаем GPU (на Streamlit Cloud нет CUDA)
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -17,13 +10,11 @@ torch.set_num_threads(1)
 # === Попытка 1: sentence-transformers ===
 SENTENCE_TRANSFORMERS_AVAILABLE = False
 try:
-    from sentence_transformers import SentenceTransformer
-    from sentence_transformers.util import cos_sim
+    from sentence_transformers import SentenceTransformer, util
     SENTENCE_TRANSFORMERS_AVAILABLE = True
-    st.write("✅ sentence-transformers: ДОСТУПЕН")
-except Exception as e:
-    st.write(f"❌ sentence-transformers: НЕДОСТУПЕН — {e}")
+except Exception:
     pass
+
 # === Попытка 2: TF-IDF ===
 TFIDF_AVAILABLE = False
 try:
@@ -37,17 +28,15 @@ except Exception:
 # === Загрузка модели эмбеддингов (с кэшированием) ===
 @st.cache_resource
 def load_embedding_model():
-    cache_dir = "./cache"
-    os.makedirs(cache_dir, exist_ok=True)
-    return SentenceTransformer('all-MiniLM-L6-v2', cache_folder=cache_dir)
+    return SentenceTransformer('all-MiniLM-L6-v2')
 
 # === Фильтрация: эмбеддинги ===
 def filter_with_embeddings(products, query):
-    model = load_embedding_model()  # ✅ Правильный вызов
+    model = load_embedding_model()
     query_emb = model.encode(query, convert_to_tensor=True, show_progress_bar=False)
     product_texts = [f"{p['name']}. {p.get('description', '')}" for p in products]
     product_embs = model.encode(product_texts, convert_to_tensor=True, show_progress_bar=False)
-    similarities = cos_sim(query_emb, product_embs)[0]
+    similarities = util.cos_sim(query_emb, product_embs)[0]
     top_k = min(5, len(products))
     top_indices = torch.topk(similarities, k=top_k).indices
     return [products[i] for i in top_indices]
@@ -134,7 +123,7 @@ def show():
 """)
 
     hero = st.session_state["hero"]
-    query = st.session_state["user_query"]
+    query = st.session_state.get("user_query", "Не указана")
     eligible_products = st.session_state["eligible_products"]
 
     # Отбор релевантных продуктов
@@ -152,13 +141,8 @@ def show():
     st.code(prompt, language="text")
     st.info("Этот промпт будет отправлен в языковую модель для генерации финального совета.")
 
-    # Кнопка перехода к генерации
+    # Кнопка перехода к генерации (без вызова LLM здесь!)
     if st.button("➤ Отправить в LLM"):
         st.session_state["final_prompt"] = prompt
         st.session_state["screen"] = "llm_response"
-        st.rerun()
-
-    st.divider()
-    if st.button("🔄 Начать заново"):
-        st.session_state.clear()
         st.rerun()

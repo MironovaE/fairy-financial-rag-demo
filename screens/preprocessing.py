@@ -42,7 +42,7 @@ def show():
     """)
 
     hero = st.session_state["hero"]
-    query = st.session_state.get("goal", "Не указана")
+    query = st.session_state.get("user_query", "Не указана")
     products = st.session_state["products_data"]
 
     # 🔹 Вывод полного профиля героя
