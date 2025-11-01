@@ -28,22 +28,34 @@ except Exception:
 # === Загрузка модели эмбеддингов (с кэшированием) ===
 @st.cache_resource
 def load_embedding_model():
-    return SentenceTransformer('all-MiniLM-L6-v2')
+    return SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 
-# === Фильтрация: эмбеддинги ===
+# === Фильтрация: эмбеддинги (использует поле 'text') ===
 def filter_with_embeddings(products, query):
     model = load_embedding_model()
     query_emb = model.encode(query, convert_to_tensor=True, show_progress_bar=False)
-    product_texts = [f"{p['name']}. {p.get('description', '')}" for p in products]
+    # Используем поле 'text' — именно оно содержит цель продукта
+    product_texts = []
+    for p in products:
+        text = p.get('text', '').strip()
+        if not text:
+            # Fallback: если text пуст, используем name + description
+            text = f"{p['name']}. {p.get('description', '')}"
+        product_texts.append(text)
     product_embs = model.encode(product_texts, convert_to_tensor=True, show_progress_bar=False)
     similarities = util.cos_sim(query_emb, product_embs)[0]
     top_k = min(5, len(products))
     top_indices = torch.topk(similarities, k=top_k).indices
     return [products[i] for i in top_indices]
 
-# === Фильтрация: TF-IDF ===
+# === Фильтрация: TF-IDF (использует поле 'text') ===
 def filter_with_tfidf(products, query):
-    product_texts = [f"{p['name']} {p.get('description', '')}".lower() for p in products]
+    product_texts = []
+    for p in products:
+        text = p.get('text', '').strip()
+        if not text:
+            text = f"{p['name']}. {p.get('description', '')}"
+        product_texts.append(text.lower())
     query_text = query.lower()
     vectorizer = TfidfVectorizer(stop_words=None, ngram_range=(1, 2))
     tfidf_matrix = vectorizer.fit_transform(product_texts + [query_text])
@@ -52,7 +64,6 @@ def filter_with_tfidf(products, query):
     similarities = cosine_similarity(query_vec, product_vecs).flatten()
     top_indices = np.argsort(similarities)[::-1][:5]
     return [products[i] for i in top_indices if similarities[i] > 0.05]
-
 # === Фильтрация: ключевые слова ===
 def filter_with_keywords(products, query):
     query_lower = query.lower()
