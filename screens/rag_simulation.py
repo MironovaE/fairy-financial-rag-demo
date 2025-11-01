@@ -2,6 +2,7 @@
 import streamlit as st
 import os
 import torch
+from utils import get_address_and_verb  # ← новая утилита
 
 # Отключаем GPU (на Streamlit Cloud нет CUDA)
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -34,12 +35,10 @@ def load_embedding_model():
 def filter_with_embeddings(products, query):
     model = load_embedding_model()
     query_emb = model.encode(query, convert_to_tensor=True, show_progress_bar=False)
-    # Используем поле 'text' — именно оно содержит цель продукта
     product_texts = []
     for p in products:
         text = p.get('text', '').strip()
         if not text:
-            # Fallback: если text пуст, используем name + description
             text = f"{p['name']}. {p.get('description', '')}"
         product_texts.append(text)
     product_embs = model.encode(product_texts, convert_to_tensor=True, show_progress_bar=False)
@@ -64,6 +63,7 @@ def filter_with_tfidf(products, query):
     similarities = cosine_similarity(query_vec, product_vecs).flatten()
     top_indices = np.argsort(similarities)[::-1][:5]
     return [products[i] for i in top_indices if similarities[i] > 0.05]
+
 # === Фильтрация: ключевые слова ===
 def filter_with_keywords(products, query):
     query_lower = query.lower()
@@ -96,9 +96,19 @@ def build_rag_prompt(hero, query, relevant_products):
         f"- **{p['name']}**: {p.get('description', 'Описание отсутствует')}"
         for p in top_products
     )
+
+    # Получаем персонализированное обращение и глагол
+    address, verb = get_address_and_verb(hero)
+
+    hero_name = hero['name']
+    age = hero['age']
+    income = hero['income']
+    citizenship = hero['citizenship']
+
     return f"""Ты — Сундук Мудрости, сказочный советник Княжеского банка.
-Герой: {hero['name']}, возраст {hero['age']}, доход {hero['income']} золотых, гражданство: {hero['citizenship']}.
-Его финансовая цель: "{query}"
+
+{address.capitalize()}! Ты {verb} с важной финансовой целью: «{query}».
+Ты — {hero_name}, возраст {age}, доход {income} золотых, гражданство: {citizenship}.
 
 Доступные релевантные продукты:
 {products_text}
@@ -106,8 +116,10 @@ def build_rag_prompt(hero, query, relevant_products):
 Сформулируй тёплый, сказочный, полезный совет в 3–5 предложениях.
 Не упоминай реальные бренды, валюты или страны.
 Используй образы русских сказок: злато, терема, богатыри, мудрость.
-Валюта — только «золотые»."""
+Валюта — только «золотые».
 
+❗ Уважай возраст героя: если возраст > 100 — подчеркни мудрость и опыт.
+❗ Сохраняй сказочный тон и обращайся лично."""
 
 # === Основной экран ===
 def show():
@@ -153,7 +165,7 @@ def show():
     st.code(prompt, language="text")
     st.info("Этот промпт будет отправлен в языковую модель для генерации финального совета.")
 
-    # Кнопка перехода к генерации (без вызова LLM здесь!)
+    # Кнопка перехода к генерации
     if st.button("➤ Отправить в LLM"):
         st.session_state["final_prompt"] = prompt
         st.session_state["screen"] = "llm_response"

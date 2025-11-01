@@ -1,6 +1,7 @@
 # screens/llm_response.py
 import streamlit as st
 from groq import Groq
+from utils import get_address_and_verb  # ← используем ту же логику, что и в RAG
 
 def call_groq(prompt):
     try:
@@ -17,10 +18,11 @@ def call_groq(prompt):
         return f"⚠️ Сундук Мудрости не смог связаться с волшебным кристаллом Groq:\n\n_{str(e)[:150]}..._\n\nНо не отчаивайся! Вот мудрый совет от самого Сундука:"
 
 def mock_response(hero, query):
-    name = hero.get("name", "добрый путник")
+    # Используем ту же функцию, что и в промпте — полная согласованность!
+    address, verb = get_address_and_verb(hero)
     eligible_products = st.session_state.get("eligible_products", [])
 
-    base = f"Дорогой/ая {name}! Ты обратился с важным вопросом: «{query}». Увы, волшебный кристалл Groq сегодня устал. Но не беда! Сундук Мудрости всегда найдёт выход."
+    base = f"{address.capitalize()}! Ты {verb} с важным вопросом: «{query}». Увы, волшебный кристалл Groq сегодня устал. Но не беда! Сундук Мудрости всегда найдёт выход."
 
     if eligible_products:
         product = eligible_products[0]
