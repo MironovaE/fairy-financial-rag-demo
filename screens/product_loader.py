@@ -1,99 +1,69 @@
-# screens/product_loader.py
-import streamlit as st
 import json
-import os
+
+import streamlit as st
+
+from utils import go, step_header
+
+DEMO_PATH = "data/products.json"
+REQUIRED_FIELDS = {"id", "name", "description", "text", "eligibility"}
+
+
+def load_demo():
+    with open(DEMO_PATH, encoding="utf-8") as f:
+        st.session_state["products_data"] = json.load(f)
+
 
 def show():
-    st.title("✨ Сундук Мудрости")
-    st.subheader("Загрузка сказочных финансовых продуктов")
+    step_header(
+        "product_loader",
+        "Продукты банка",
+        "Из чего Сундук будет выбирать. Возьмите демо-набор или загрузите свой файл.",
+    )
 
-    st.markdown("""
-    Чтобы Сундук Мудрости мог подобрать тебе подходящие предложения, укажи источник данных о продуктах Княжеского банка:
-    
-    - Загрузи свой файл `products.json`, **ИЛИ**
-    - Используй нашу демо-базу (из `data/products.json`)
-    """)
+    with st.expander("Формат своего `products.json`"):
+        st.markdown(
+            """
+Массив объектов, у каждого продукта обязательные поля:
 
-    # Аккордеон с требованиями к формату JSON
-    with st.expander("📘 Требования к кастомному файлу `products.json`"):
-        st.markdown("""
-        Ваш JSON должен быть **массивом объектов**, где каждый продукт содержит **обязательные поля**:
-        ```json
-        [
-          {
-            "id": "unique_product_id",
-            "name": "Название продукта",
-            "description": "Краткое описание",
-            "text": "Полный текст для семантического поиска",
-            "eligibility": {
-              "min_age": 18,
-              "max_age": null,
-              "min_income": 50000,
-              "citizenship_allowed": ["Великое Княжество", "Лесное Ханство"]
-            }
-          }
-        ]
-        ```
+```json
+[
+  {
+    "id": "deposit_golden_acorn",
+    "name": "Вклад «Золотой Жёлудь»",
+    "type": "deposit",
+    "description": "Короткое описание — попадёт в промпт",
+    "text": "Полный текст — по нему идёт семантический поиск",
+    "eligibility": {
+      "min_age": 18,
+      "max_age": null,
+      "min_income": 50000,
+      "citizenship_allowed": ["Великое Княжество"]
+    }
+  }
+]
+```
 
-        **Обязательные поля:**
-        - `id` — уникальный идентификатор (строка),
-        - `name` — название продукта (строка),
-        - `description` — краткое описание (строка),
-        - `text` — полный текст для RAG-поиска (строка),
-        - `eligibility` — объект с правилами фильтрации.
+Все поля внутри `eligibility` необязательны: `null` или отсутствие поля означает «без ограничения».
+            """
+        )
 
-        **Поля внутри `eligibility` (все опциональны, но хотя бы одно рекомендуется):**
-        - `min_age` — минимальный возраст (целое число или `null`),
-        - `max_age` — максимальный возраст (целое число или `null`),
-        - `min_income` — минимальный доход в золотых (целое число или `null`),
-        - `citizenship_allowed` — массив разрешённых гражданств (массив строк).
+    st.button("Использовать демо-продукты", on_click=load_demo)
 
-        Эти данные используются для:
-        - Фильтрации продуктов по профилю героя,
-        - Семантического поиска через эмбеддинги (`text`).
-        """)
-
-    col1, col2 = st.columns([1, 2])
-
-    with col1:
-        if st.button("🔷 Использовать демо-продукты"):
-            demo_path = "data/products.json"
-            if os.path.exists(demo_path):
-                try:
-                    with open(demo_path, "r", encoding="utf-8") as f:
-                        products = json.load(f)
-                    st.session_state["products_data"] = products
-                    st.success("✅ Демо-продукты загружены!")
-                except Exception as e:
-                    st.error(f"Ошибка чтения демо-файла: {e}")
+    uploaded_file = st.file_uploader("Или загрузите свой файл", type="json")
+    if uploaded_file:
+        try:
+            products = json.load(uploaded_file)
+        except json.JSONDecodeError as e:
+            st.error(f"Не получилось прочитать JSON: {e}")
+        else:
+            if not isinstance(products, list) or not products:
+                st.error("В файле должен быть непустой массив продуктов.")
             else:
-                st.error("Файл `data/products.json` не найден. Убедитесь, что он существует в папке проекта.")
-
-    with col2:
-        uploaded_file = st.file_uploader("Загрузите свой файл с финансовыми продуктами", type="json")
-        if uploaded_file:
-            try:
-                products = json.load(uploaded_file)
-                # Базовая валидация
-                if not isinstance(products, list):
-                    st.error("Файл должен содержать массив продуктов.")
-                elif len(products) == 0:
-                    st.error("Массив продуктов пуст.")
-                else:
-                    # Проверим первый элемент на наличие обязательных полей
-                    first = products[0]
-                    required = {"id", "name", "description", "text", "eligibility"}
-                    if not required.issubset(first.keys()):
-                        missing = required - set(first.keys())
-                        st.warning(f"⚠️ В первом продукте отсутствуют поля: {missing}. Возможны ошибки при фильтрации или RAG-поиске.")
-                    st.session_state["products_data"] = products
-                    st.success("✅ Твои продукты успешно загружены!")
-            except Exception as e:
-                st.error(f"Ошибка при чтении JSON: {e}")
+                missing = REQUIRED_FIELDS - set(products[0])
+                if missing:
+                    st.warning(f"У первого продукта не хватает полей: {', '.join(sorted(missing))}.")
+                st.session_state["products_data"] = products
 
     if "products_data" in st.session_state:
-        st.divider()
-        st.info(f"Загружено {len(st.session_state['products_data'])} сказочных финансовых продуктов.")
-        if st.button("➡️ Перейти к анализу данных"):
-            st.session_state["screen"] = "preprocessing"
-            st.rerun()
+        st.success(f"Загружено продуктов: {len(st.session_state['products_data'])}")
+        st.button("Дальше — фильтрация", type="primary", on_click=go, args=("preprocessing",))

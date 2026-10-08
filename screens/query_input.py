@@ -1,51 +1,38 @@
-# screens/query_input.py
 import streamlit as st
 
+from utils import go, restart, step_header
+
+EXAMPLES = [
+    "Хочу накопить на терем за год",
+    "Нужен заём на нового коня",
+    "Как отложить на старость?",
+]
+
+
 def show():
-    hero = st.session_state.get("hero", {})
-    hero_name = hero.get("name", "добрый путник")
+    hero = st.session_state["hero"]
 
-    # Кнопка "Выйти" в правом верхнем углу
-    col_empty, col_exit = st.columns([6, 1])
-    with col_exit:
-        if st.button("🚪 Выйти", key="exit_from_query"):
-            st.session_state.clear()
-            st.rerun()
-
-    st.title("🏦 Сундук Мудрости")
-    st.markdown("*Сказочный финансовый советник Княжеского банка*")
-
-    # Приветствие
-    st.markdown(f"""
-    <div style="font-size: 1.2em; line-height: 1.6;">
-    🌟 <b>Приветствуем тебя, {hero_name}!</b><br>
-    Добро пожаловать в Княжеский банк — место, где золотые мечты превращаются в реальность!<br>
-    Расскажи, какую финансовую цель ты хочешь достичь? Может, накопить на терем на Мальдивах?<br>
-    Или собрать сбережения на Княжеский пир мечты?
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.divider()
-
-    # Поле ввода — ОБЯЗАТЕЛЬНО с key="user_query_input"
-    st.text_area(
-        "Задайте свой вопрос Сундуку Мудрости:",
-        placeholder="Например: «Как накопить на терем на Мальдивах за 2 месяца?»",
-        height=100,
-        key="user_query_input"
+    step_header(
+        "query_input",
+        f"Здравствуй, {hero['name']}!",
+        "Расскажи, какую финансовую цель хочешь достичь — Сундук подберёт, что предложить.",
     )
 
-    # Получаем текст из поля
-    user_query = st.session_state.get("user_query_input", "").strip()
+    with st.form("query"):
+        query = st.text_area(
+            "Вопрос",
+            placeholder="Например: «Как накопить на терем на Мальдивах за два месяца?»",
+            height=100,
+        )
+        st.caption("Ещё идеи: " + " · ".join(f"«{e}»" for e in EXAMPLES))
+        submitted = st.form_submit_button("Получить совет", type="primary")
 
-    # Кнопка отправки
-    if st.button("➤ Получить совет"):
-        if user_query:
-            # Сохраняем запрос
-            st.session_state["user_query"] = user_query
-            # Говорим: "Теперь показывай экран загрузки продуктов"
-            st.session_state["screen"] = "product_loader"
-            # Обновляем страницу
+    if submitted:
+        if query.strip():
+            st.session_state["user_query"] = query.strip()
+            go("product_loader")
             st.rerun()
         else:
-            st.error("Пожалуйста, напишите свой вопрос!")
+            st.error("Напишите вопрос.")
+
+    st.button("Выйти", on_click=restart)

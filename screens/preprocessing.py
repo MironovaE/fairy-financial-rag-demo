@@ -1,78 +1,64 @@
-# screens/preprocessing.py
 import streamlit as st
 
-def filter_products_by_profile(products, hero):
-    """Фильтрация продуктов по возрасту, доходу и гражданству героя.
-    Поддерживает только формат с eligibility.
-    """
-    filtered = []
-    for p in products:
-        eligibility = p.get("eligibility", {})
-        min_age = eligibility.get("min_age")
-        max_age = eligibility.get("max_age")
-        min_income = eligibility.get("min_income")
-        citizenship_allowed = eligibility.get("citizenship_allowed")  # ← важно: citizenship_allowed
+from utils import go, hero_summary, step_header
 
-        # Возраст
-        if min_age is not None and hero.get("age") is not None and hero["age"] < min_age:
-            continue
-        if max_age is not None and hero.get("age") is not None and hero["age"] > max_age:
-            continue
-        # Доход
-        if min_income is not None and hero.get("income") is not None and hero["income"] < min_income:
-            continue
-        # Гражданство
-        if citizenship_allowed:
-            allowed = citizenship_allowed
-            if isinstance(allowed, str):
-                allowed = [allowed]
-            if hero.get("citizenship") not in allowed:
-                continue
 
-        filtered.append(p)
-    return filtered
+def rejection_reason(product, hero):
+    """Почему продукт не подходит герою; None — если подходит."""
+    rules = product.get("eligibility", {})
+    age, income = hero.get("age"), hero.get("income")
+
+    if rules.get("min_age") is not None and age < rules["min_age"]:
+        return f"возраст от {rules['min_age']}"
+    if rules.get("max_age") is not None and age > rules["max_age"]:
+        return f"возраст до {rules['max_age']}"
+    if rules.get("min_income") is not None and income < rules["min_income"]:
+        return f"доход от {rules['min_income']}"
+
+    allowed = rules.get("citizenship_allowed")
+    if allowed:
+        if isinstance(allowed, str):
+            allowed = [allowed]
+        if hero.get("citizenship") not in allowed:
+            return "другое гражданство"
+    return None
+
 
 def show():
-    st.title("⚙️ Препроцессинг: отбор подходящих продуктов")
-
-    st.markdown("""
-    Подготовка списка финансовых продуктов, которые:
-    - **Физически доступны герою** по его профилю (возраст, доход, гражданство),
-    - **Будут использоваться дальше** в RAG-имитации для формирования промпта и генерации совета.
-    """)
+    step_header(
+        "preprocessing",
+        "Фильтрация по правилам",
+        "До всякого поиска отсеиваем то, что герою не положено по возрасту, доходу и гражданству.",
+    )
 
     hero = st.session_state["hero"]
-    query = st.session_state.get("user_query", "Не указана")
     products = st.session_state["products_data"]
 
-    # 🔹 Вывод полного профиля героя
-    st.subheader("👤 Профиль героя")
-    hero_info = {
-        "Имя": hero.get("name", "—"),
-        "Возраст": hero.get("age", "не указан") if hero.get("age") is not None else "не указан",
-        "Доход": f"{hero.get('income', 'не указан')} золотых" if hero.get("income") is not None else "не указан",
-        "Гражданство": hero.get("citizenship", "не указано"),
-        "Номер карты (последние 4 цифры)": hero.get("card_suffix", "—"),  # ← исправлено
-        "Социальный удел": hero.get("traits", "—")
-    }
-    for key, value in hero_info.items():
-        st.markdown(f"**{key}:** {value}")
+    st.markdown(f"**Герой:** {hero_summary(hero)}")
+    st.markdown(f"**Вопрос:** «{st.session_state['user_query']}»")
 
-    st.markdown(f"**🎯 Запрос героя:** _«{query}»_")
-    st.markdown(f"**📦 Всего продуктов в базе:** {len(products)}")
-
-    # Выполняем фильтрацию
-    eligible = filter_products_by_profile(products, hero)
+    eligible, rejected = [], []
+    for p in products:
+        reason = rejection_reason(p, hero)
+        if reason is None:
+            eligible.append(p)
+        else:
+            rejected.append((p, reason))
     st.session_state["eligible_products"] = eligible
 
-    st.success(f"✅ Отобрано {len(eligible)} продуктов, подходящих по возрасту, доходу и гражданству.")
+    a, b = st.columns(2)
+    a.metric("Подходят", len(eligible))
+    b.metric("Отсеяно", len(rejected))
 
-    # Показываем список (кратко)
-    with st.expander("📋 Список отобранных продуктов", expanded=False):
+    with st.expander(f"Подходят ({len(eligible)})"):
         for p in eligible:
-            st.markdown(f"- **{p['name']}**")
+            st.markdown(f"- {p['name']}")
+    if rejected:
+        with st.expander(f"Отсеяно ({len(rejected)})"):
+            for p, reason in rejected:
+                st.markdown(f"- {p['name']} — <span class='muted'>{reason}</span>", unsafe_allow_html=True)
 
-    st.divider()
-    if st.button("➡️ Перейти к RAG-имитации"):
-        st.session_state["screen"] = "rag_simulation"
-        st.rerun()
+    if eligible:
+        st.button("Дальше — поиск", type="primary", on_click=go, args=("rag_simulation",))
+    else:
+        st.warning("Ни один продукт не подходит этому герою — искать не из чего.")

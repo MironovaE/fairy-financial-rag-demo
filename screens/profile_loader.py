@@ -1,87 +1,66 @@
-# screens/profile_loader.py
-import streamlit as st
 import json
-import os
+
+import streamlit as st
+
+from utils import go, step_header
+
+DEMO_PATH = "data/heroes.json"
+REQUIRED_FIELDS = {"card_suffix", "name", "age", "income", "citizenship"}
+
+
+def load_demo():
+    with open(DEMO_PATH, encoding="utf-8") as f:
+        st.session_state["heroes_data"] = json.load(f)
+
 
 def show():
-    st.title("✨ Сундук Мудрости")
-    st.subheader("Добро пожаловать в сказочный финансовый советник Княжеского банка!")
+    step_header(
+        "profile_loader",
+        "Профили героев",
+        "Кто может прийти в банк. Возьмите демо-набор или загрузите свой файл.",
+    )
 
-    st.markdown("""
-    Чтобы начать, пожалуйста, укажите источник данных о героях:
-    
-    - Загрузите свой файл `heroes.json`, **ИЛИ**
-    - Используйте наши демо-профили (из `data/heroes.json`)
-    """)
+    with st.expander("Формат своего `heroes.json`"):
+        st.markdown(
+            """
+Массив объектов, у каждого героя обязательные поля:
 
-    # Аккордеон с требованиями к формату JSON
-    with st.expander("📘 Требования к кастомному файлу `heroes.json`"):
-        st.markdown("""
-        Ваш JSON должен быть **массивом объектов**, где каждый герой содержит **обязательные поля**:
-        ```json
-        [
-          {
-            "card_suffix": "1234",
-            "name": "Соловей-разбойник",
-            "age": 35,
-            "income": 1200,
-            "citizenship": "Лесное Ханство"
-          }
-        ]
-        ```
-        **Обязательные поля:**
-        - `card_suffix` — строка из **4 цифр** (например, `"1111"`), уникальный идентификатор героя.
-        - `name` — имя героя (строка).
-        - `age` — возраст (целое число, ≥0).
-        - `income` — доход в **золотых** (целое число, ≥0).
-        - `citizenship` — гражданство (строка, например `"Княжество"` или `"Лесное Ханство"`).
+```json
+[
+  {
+    "card_suffix": "1234",
+    "name": "Соловей-разбойник",
+    "age": 40,
+    "gender": "мужской",
+    "income": 80000,
+    "citizenship": "Лесное Ханство"
+  }
+]
+```
 
-        Эти поля используются для:
-        - Авторизации по 4 цифрам карты,
-        - Фильтрации финансовых продуктов по возрасту, доходу и гражданству.
-        """)
+- `card_suffix` — 4 цифры строкой, по ним герой входит в банк;
+- `age`, `income`, `citizenship` — по ним фильтруются продукты;
+- `gender` — необязательное, нужно для обращения («дорогой» / «дорогая»).
+            """
+        )
 
-    col1, col2 = st.columns([1, 2])
+    st.button("Использовать демо-профили", on_click=load_demo)
 
-    with col1:
-        if st.button("🔷 Использовать демо-профили"):
-            demo_path = "data/heroes.json"
-            if os.path.exists(demo_path):
-                try:
-                    with open(demo_path, "r", encoding="utf-8") as f:
-                        heroes = json.load(f)
-                    st.session_state["heroes_data"] = heroes
-                    st.success("✅ Демо-профили загружены!")
-                except Exception as e:
-                    st.error(f"Ошибка чтения демо-файла: {e}")
+    uploaded_file = st.file_uploader("Или загрузите свой файл", type="json")
+    if uploaded_file:
+        try:
+            heroes = json.load(uploaded_file)
+        except json.JSONDecodeError as e:
+            st.error(f"Не получилось прочитать JSON: {e}")
+        else:
+            if not isinstance(heroes, list) or not heroes:
+                st.error("В файле должен быть непустой массив героев.")
             else:
-                st.error("Файл `data/heroes.json` не найден. Убедитесь, что он существует в папке проекта.")
-
-    with col2:
-        uploaded_file = st.file_uploader("Загрузите свой файл с профилями героев", type="json")
-        if uploaded_file:
-            try:
-                heroes = json.load(uploaded_file)
-                # Базовая валидация
-                if not isinstance(heroes, list):
-                    st.error("Файл должен содержать массив героев.")
-                elif len(heroes) == 0:
-                    st.error("Массив героев пуст.")
-                else:
-                    # Проверим первый элемент на наличие обязательных полей
-                    first = heroes[0]
-                    required = {"card_suffix", "name", "age", "income", "citizenship"}
-                    if not required.issubset(first.keys()):
-                        missing = required - set(first.keys())
-                        st.warning(f"⚠️ В герое отсутствуют поля: {missing}. Возможны ошибки при фильтрации.")
-                    st.session_state["heroes_data"] = heroes
-                    st.success("✅ Ваши профили успешно загружены!")
-            except Exception as e:
-                st.error(f"Ошибка при чтении JSON: {e}")
+                missing = REQUIRED_FIELDS - set(heroes[0])
+                if missing:
+                    st.warning(f"У первого героя не хватает полей: {', '.join(sorted(missing))}.")
+                st.session_state["heroes_data"] = heroes
 
     if "heroes_data" in st.session_state:
-        st.divider()
-        st.info(f"Загружено {len(st.session_state['heroes_data'])} профилей героев.")
-        if st.button("➡️ Перейти к авторизации"):
-            st.session_state["screen"] = "auth"
-            st.rerun()
+        st.success(f"Загружено героев: {len(st.session_state['heroes_data'])}")
+        st.button("Дальше — вход в банк", type="primary", on_click=go, args=("auth",))

@@ -1,70 +1,71 @@
-# screens/llm_response.py
+import logging
+
 import streamlit as st
 from groq import Groq
-from utils import get_address_and_verb  # ← используем ту же логику, что и в RAG
+
+from utils import capitalize_first, get_address_and_verb, go, hero_summary, restart, step_header
+
+logger = logging.getLogger(__name__)
+
+MODEL = "openai/gpt-oss-20b"
+
 
 def call_groq(prompt):
+    """Ответ модели или None, если Groq недоступен."""
     try:
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",  # ← оптимальная модель для free tier
+        response = Groq(api_key=st.secrets["GROQ_API_KEY"]).chat.completions.create(
+            model=MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
-            max_tokens=300,  # достаточно для 4–5 сказочных предложений
-            stream=False
+            # gpt-oss сначала рассуждает, и рассуждения тоже тратят лимит токенов
+            max_tokens=1024,
+            extra_body={"reasoning_effort": "low"},
         )
         return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"⚠️ Сундук Мудрости не смог связаться с волшебным кристаллом Groq:\n\n_{str(e)[:150]}..._\n\nНо не отчаивайся! Вот мудрый совет от самого Сундука:"
+    except Exception:
+        logger.exception("Groq request failed")
+        return None
 
-def mock_response(hero, query):
-    # Используем ту же функцию, что и в промпте — полная согласованность!
+
+def fallback_response(hero, query, products):
     address, verb = get_address_and_verb(hero)
-    eligible_products = st.session_state.get("eligible_products", [])
-
-    base = f"{address.capitalize()}! Ты {verb} с важным вопросом: «{query}». Увы, волшебный кристалл Groq сегодня устал. Но не беда! Сундук Мудрости всегда найдёт выход."
-
-    if eligible_products:
-        product = eligible_products[0]
-        suggestion = f"\n\n👆 Вот мой мудрый совет:\n**{product['name']}** — {product.get('description', 'то, что тебе нужно')}."
+    text = f"{capitalize_first(address)}, ты {verb} с вопросом: «{query}». "
+    if products:
+        best = products[0]
+        description = best.get("description", "").rstrip(".")
+        text += f"Присмотрись: {best['name']} — {description[:1].lower()}{description[1:]}."
     else:
-        suggestion = "\n\nПока я не нашёл продуктов, подходящих под твой профиль. Попробуй уточнить цель — например: «Хочу накопить на терем» или «Нужен заем на коня»."
+        text += "Подходящих продуктов пока нет — попробуй сформулировать цель иначе."
+    return text
 
-    final = f"{base}{suggestion}\n\nА если хочешь больше — обратись к Князю, он всезнающ и мудр.👆"
-    return final
 
 def show():
-    st.title("🧙 Сундук Мудрости отвечает")
+    step_header("llm_response", "Совет Сундука")
 
     hero = st.session_state["hero"]
-    query = st.session_state.get("user_query", "Не указана")
+    query = st.session_state["user_query"]
 
-    st.markdown(f"**Герой:** {hero.get('name', '—')}")
-    st.markdown(f"**Цель:** _«{query}»_")
-    st.divider()
+    st.markdown(f"**Герой:** {hero_summary(hero)}")
+    st.markdown(f"**Вопрос:** «{query}»")
 
     if "llm_response" not in st.session_state:
-        with st.spinner("Сундук Мудрости обращается к волшебному кристаллу Groq..."):
-            prompt = st.session_state["final_prompt"]
-            response = call_groq(prompt)
-            # Если ответ содержит ошибку — добавляем мок
-            if response and "⚠️ Сундук Мудрости не смог" in response:
-                response += "\n\n" + mock_response(hero, query)
-            elif not response:
-                # Если response = None (редко, но возможно)
-                response = mock_response(hero, query)
-            st.session_state["llm_response"] = response
+        with st.spinner("Сундук думает…"):
+            answer = call_groq(st.session_state["final_prompt"])
+        st.session_state["llm_response"] = answer
+        st.session_state["llm_fallback"] = answer is None
+        if answer is None:
+            st.session_state["llm_response"] = fallback_response(
+                hero, query, st.session_state.get("relevant_products", [])
+            )
 
-    st.subheader("💬 Совет Сундука Мудрости")
-    st.markdown(f"> {st.session_state['llm_response']}")
+    with st.container(border=True):
+        st.markdown(st.session_state["llm_response"])
+    if st.session_state["llm_fallback"]:
+        st.caption("Модель сейчас недоступна, поэтому показан шаблонный ответ по самому релевантному продукту.")
+    else:
+        st.caption(f"Ответ сгенерирован моделью {MODEL} через Groq.")
 
     st.divider()
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("⬅️ Вернуться к RAG"):
-            st.session_state["screen"] = "rag_simulation"
-            st.rerun()
-    with col2:
-        if st.button("🔄 Начать заново"):
-            st.session_state.clear()
-            st.rerun()
+    col1, col2, _ = st.columns([1, 1, 2])
+    col1.button("Назад к поиску", on_click=go, args=("rag_simulation",), use_container_width=True)
+    col2.button("Начать заново", on_click=restart, use_container_width=True)
