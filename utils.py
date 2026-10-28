@@ -11,6 +11,8 @@ class Key:
     PRODUCTS = "products_data"
     ELIGIBLE = "eligible_products"
     RELEVANT = "relevant_products"
+    # (хэш каталога, коллекция Chroma этой сессии или None)
+    STORE = "vector_store"
     PROMPT = "final_prompt"
     ANSWER = "llm_response"
     ANSWER_IS_FALLBACK = "llm_fallback"
