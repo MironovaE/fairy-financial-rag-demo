@@ -1,9 +1,11 @@
-streamlit==1.38.0
-groq>=0.9.0
+# На Streamlit Cloud нет GPU: CPU-сборка torch в разы легче
+torch==2.8.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
 
-# torch 2.1 собран под numpy 1.x
-numpy<2
-torch==2.1.2
-transformers==4.36.2
-sentence-transformers==2.5.1
-scikit-learn>=1.3.0
+streamlit==1.38.0
+# клиенты groq старше 0.13 падают с httpx>=0.28 (убрали аргумент proxies)
+groq>=0.13.1,<1
+numpy>=1.26,<3
+scikit-learn==1.5.2
+sentence-transformers==5.1.2
+transformers==4.56.2
