@@ -1,12 +1,10 @@
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+from rag.data import parse_json
 
-from rag.data import parse_json  # noqa: E402
+ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture
