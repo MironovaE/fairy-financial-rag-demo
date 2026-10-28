@@ -3,17 +3,30 @@ import logging
 import streamlit as st
 from groq import Groq
 
-from utils import capitalize_first, get_address_and_verb, go, hero_summary, restart, step_header
+from rag.prompt import fallback_response, hero_summary
+from utils import go, restart, step_header
 
 logger = logging.getLogger(__name__)
 
 MODEL = "openai/gpt-oss-20b"
 
 
+def groq_api_key():
+    try:
+        return st.secrets.get("GROQ_API_KEY")
+    except FileNotFoundError:
+        # локально без .streamlit/secrets.toml
+        return None
+
+
 def call_groq(prompt):
     """Ответ модели или None, если Groq недоступен."""
+    api_key = groq_api_key()
+    if not api_key:
+        logger.warning("GROQ_API_KEY is not set, showing the template answer")
+        return None
     try:
-        response = Groq(api_key=st.secrets["GROQ_API_KEY"]).chat.completions.create(
+        response = Groq(api_key=api_key).chat.completions.create(
             model=MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
@@ -25,18 +38,6 @@ def call_groq(prompt):
     except Exception:
         logger.exception("Groq request failed")
         return None
-
-
-def fallback_response(hero, query, products):
-    address, verb = get_address_and_verb(hero)
-    text = f"{capitalize_first(address)}, ты {verb} с вопросом: «{query}». "
-    if products:
-        best = products[0]
-        description = best.get("description", "").rstrip(".")
-        text += f"Присмотрись: {best['name']} — {description[:1].lower()}{description[1:]}."
-    else:
-        text += "Подходящих продуктов пока нет — попробуй сформулировать цель иначе."
-    return text
 
 
 def show():
