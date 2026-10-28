@@ -19,6 +19,7 @@ TOP_K = 5
 EMBEDDING_THRESHOLD = 0.3
 TFIDF_THRESHOLD = 0.05
 
+METHOD_CHROMA = "векторная база Chroma"
 METHOD_EMBEDDINGS = "эмбеддинги"
 METHOD_TFIDF = "TF-IDF"
 METHOD_KEYWORDS = "ключевые слова"
@@ -75,14 +76,36 @@ def search_keywords(products, query):
     return [(p, None) for p in products if p.get("type") in types][:TOP_K]
 
 
-def get_relevant_products(products, query, embed=None):
+def search_store(store, products, hero, query_vector, threshold=EMBEDDING_THRESHOLD):
+    """
+    Поиск в векторной базе: фильтр по правилам делает сама база условием where.
+
+    Главный всё равно rag.eligibility: если база вернула то, чего нет среди products, это ошибка
+    в переводе правил, такое выбрасываем и пишем в лог.
+    """
+    allowed = {p["id"] for p in products}
+    results = store.search(query_vector, hero, threshold, TOP_K)
+    extra = [p["id"] for p, _ in results if p["id"] not in allowed]
+    if extra:
+        logger.error("Chroma filter let through ineligible products: %s", extra)
+    return [(p, score) for p, score in results if p["id"] in allowed]
+
+
+def get_relevant_products(products, query, embed=None, store=None, hero=None):
     """
     Продукты, близкие к вопросу, и название сработавшего метода.
 
-    embed(texts) → нормированные векторы; None — эмбеддингов нет, сразу TF-IDF.
+    products — уже отфильтрованные по правилам. embed(texts) → нормированные векторы; None —
+    эмбеддингов нет, сразу TF-IDF. store — векторная база со всем каталогом (rag.vector_store),
+    hero нужен ей для фильтра; без них поиск идёт по векторам в памяти.
     """
     if not products:
         return [], METHOD_KEYWORDS
+    if embed is not None and store is not None and hero is not None:
+        try:
+            return search_store(store, products, hero, embed([query])[0]), METHOD_CHROMA
+        except Exception:
+            logger.exception("Chroma search failed, searching embeddings in memory")
     if embed is not None:
         try:
             vectors = embed([product_text(p) for p in products] + [query])
