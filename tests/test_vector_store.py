@@ -3,7 +3,6 @@ import sys
 import numpy as np
 import pytest
 
-from rag import vector_store
 from rag.eligibility import split_by_eligibility
 from rag.retrieval import (
     EMBEDDING_THRESHOLD,
