@@ -11,6 +11,7 @@ from screens import (
     query_input,
     rag_simulation,
 )
+from utils import Key
 
 st.set_page_config(
     page_title="Сундук Мудрости",
@@ -40,5 +41,5 @@ SCREENS = {
     "llm_response": llm_response.show,
 }
 
-screen = st.session_state.setdefault("screen", "intro")
+screen = st.session_state.setdefault(Key.SCREEN, "intro")
 SCREENS.get(screen, intro.show)()

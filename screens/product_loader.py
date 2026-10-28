@@ -2,7 +2,7 @@ import streamlit as st
 
 from rag.data import validate_products
 from screens import data_source
-from utils import go, step_header
+from utils import Key, go, step_header
 
 DEMO_PATH = "data/products.json"
 
@@ -43,7 +43,7 @@ def show():
             """
         )
 
-    items = data_source.show("products_data", DEMO_PATH, validate_products, "Использовать демо-продукты")
+    items = data_source.show(Key.PRODUCTS, DEMO_PATH, validate_products, "Использовать демо-продукты")
     if items:
         st.success(f"Загружено продуктов: {len(items)}")
         st.button("Дальше — фильтрация", type="primary", on_click=go, args=("preprocessing",))

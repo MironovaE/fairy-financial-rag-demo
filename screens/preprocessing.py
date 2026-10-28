@@ -2,7 +2,7 @@ import streamlit as st
 
 from rag.eligibility import split_by_eligibility
 from rag.prompt import hero_summary
-from utils import go, step_header
+from utils import Key, go, step_header
 
 
 def show():
@@ -12,14 +12,14 @@ def show():
         "До всякого поиска отсеиваем то, что герою не положено по возрасту, доходу и гражданству.",
     )
 
-    hero = st.session_state["hero"]
-    products = st.session_state["products_data"]
+    hero = st.session_state[Key.HERO]
+    products = st.session_state[Key.PRODUCTS]
 
     st.markdown(f"**Герой:** {hero_summary(hero)}")
-    st.markdown(f"**Вопрос:** «{st.session_state['user_query']}»")
+    st.markdown(f"**Вопрос:** «{st.session_state[Key.QUERY]}»")
 
     eligible, rejected = split_by_eligibility(products, hero)
-    st.session_state["eligible_products"] = eligible
+    st.session_state[Key.ELIGIBLE] = eligible
 
     eligible_col, rejected_col = st.columns(2)
     eligible_col.metric("Подходят", len(eligible))

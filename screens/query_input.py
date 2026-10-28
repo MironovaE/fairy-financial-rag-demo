@@ -1,6 +1,6 @@
 import streamlit as st
 
-from utils import go, restart, step_header
+from utils import Key, go, restart, step_header
 
 EXAMPLES = [
     "Хочу накопить на терем за год",
@@ -10,7 +10,7 @@ EXAMPLES = [
 
 
 def show():
-    hero = st.session_state["hero"]
+    hero = st.session_state[Key.HERO]
 
     step_header(
         "query_input",
@@ -29,7 +29,7 @@ def show():
 
     if submitted:
         if query.strip():
-            st.session_state["user_query"] = query.strip()
+            st.session_state[Key.QUERY] = query.strip()
             go("product_loader")
             st.rerun()
         else:

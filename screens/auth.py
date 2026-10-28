@@ -1,12 +1,12 @@
 import streamlit as st
 
-from utils import go, step_header
+from utils import Key, go, step_header
 
 
 def show():
     step_header("auth", "Вход в банк", "Герой входит по последним четырём цифрам карты.")
 
-    heroes = st.session_state.get("heroes_data", [])
+    heroes = st.session_state.get(Key.HEROES, [])
 
     with st.expander("Кто есть в списке", expanded=True):
         st.dataframe(
@@ -29,12 +29,15 @@ def show():
         submitted = st.form_submit_button("Войти", type="primary")
 
     if submitted:
-        hero = next((h for h in heroes if str(h.get("card_suffix")) == card_suffix), None)
+        card_suffix = card_suffix.strip()
+        # сначала формат, и только потом ищем героя
         if not (len(card_suffix) == 4 and card_suffix.isdigit()):
             st.error("Нужно ровно 4 цифры.")
-        elif hero is None:
+            return
+        hero = next((h for h in heroes if h["card_suffix"] == card_suffix), None)
+        if hero is None:
             st.error("Героя с такой картой нет — выберите из списка выше.")
-        else:
-            st.session_state["hero"] = hero
-            go("query_input")
-            st.rerun()
+            return
+        st.session_state[Key.HERO] = hero
+        go("query_input")
+        st.rerun()

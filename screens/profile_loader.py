@@ -2,7 +2,7 @@ import streamlit as st
 
 from rag.data import validate_heroes
 from screens import data_source
-from utils import go, step_header
+from utils import Key, go, step_header
 
 DEMO_PATH = "data/heroes.json"
 
@@ -42,7 +42,7 @@ def show():
             """
         )
 
-    items = data_source.show("heroes_data", DEMO_PATH, validate_heroes, "Использовать демо-профили")
+    items = data_source.show(Key.HEROES, DEMO_PATH, validate_heroes, "Использовать демо-профили")
     if items:
         st.success(f"Загружено героев: {len(items)}")
         st.button("Дальше — вход в банк", type="primary", on_click=go, args=("auth",))

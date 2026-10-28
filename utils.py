@@ -1,5 +1,20 @@
 import streamlit as st
 
+
+class Key:
+    """Ключи st.session_state — в одном месте, чтобы экраны не разошлись в написании."""
+
+    SCREEN = "screen"
+    HEROES = "heroes_data"
+    HERO = "hero"
+    QUERY = "user_query"
+    PRODUCTS = "products_data"
+    ELIGIBLE = "eligible_products"
+    RELEVANT = "relevant_products"
+    PROMPT = "final_prompt"
+    ANSWER = "llm_response"
+    ANSWER_IS_FALLBACK = "llm_fallback"
+
 STEPS = [
     "profile_loader",
     "auth",
@@ -12,7 +27,7 @@ STEPS = [
 
 
 def go(screen):
-    st.session_state["screen"] = screen
+    st.session_state[Key.SCREEN] = screen
 
 
 def restart():

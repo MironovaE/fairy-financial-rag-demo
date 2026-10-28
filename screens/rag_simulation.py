@@ -3,7 +3,7 @@ import streamlit as st
 from rag import embedder
 from rag.prompt import build_rag_prompt
 from rag.retrieval import get_relevant_products, product_text
-from utils import go, step_header
+from utils import Key, go, step_header
 
 
 @st.cache_resource(show_spinner="Загружаем модель эмбеддингов…")
@@ -41,13 +41,13 @@ def show():
         "Из подходящих продуктов выбираем самые близкие к вопросу и собираем промпт для модели.",
     )
 
-    hero = st.session_state["hero"]
-    query = st.session_state["user_query"]
+    hero = st.session_state[Key.HERO]
+    query = st.session_state[Key.QUERY]
 
-    embed = make_embed(st.session_state["products_data"])
-    results, method = get_relevant_products(st.session_state["eligible_products"], query, embed)
+    embed = make_embed(st.session_state[Key.PRODUCTS])
+    results, method = get_relevant_products(st.session_state[Key.ELIGIBLE], query, embed)
     relevant = [p for p, _ in results]
-    st.session_state["relevant_products"] = relevant
+    st.session_state[Key.RELEVANT] = relevant
 
     st.markdown(f"**Метод поиска:** {method}")
     st.caption(
@@ -66,8 +66,8 @@ def show():
         st.code(prompt, language="text")
 
     def send():
-        st.session_state["final_prompt"] = prompt
-        st.session_state.pop("llm_response", None)
+        st.session_state[Key.PROMPT] = prompt
+        st.session_state.pop(Key.ANSWER, None)
         go("llm_response")
 
     st.button("Спросить Сундук", type="primary", on_click=send, disabled=not relevant)

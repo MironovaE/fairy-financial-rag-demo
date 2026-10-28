@@ -4,7 +4,7 @@ import streamlit as st
 from groq import Groq
 
 from rag.prompt import fallback_response, hero_summary
-from utils import go, restart, step_header
+from utils import Key, go, restart, step_header
 
 logger = logging.getLogger(__name__)
 
@@ -43,30 +43,30 @@ def call_groq(prompt):
 def show():
     step_header("llm_response", "Совет Сундука")
 
-    hero = st.session_state["hero"]
-    query = st.session_state["user_query"]
+    hero = st.session_state[Key.HERO]
+    query = st.session_state[Key.QUERY]
 
     st.markdown(f"**Герой:** {hero_summary(hero)}")
     st.markdown(f"**Вопрос:** «{query}»")
 
-    if "llm_response" not in st.session_state:
+    if Key.ANSWER not in st.session_state:
         with st.spinner("Сундук думает…"):
-            answer = call_groq(st.session_state["final_prompt"])
-        st.session_state["llm_response"] = answer
-        st.session_state["llm_fallback"] = answer is None
+            answer = call_groq(st.session_state[Key.PROMPT])
         if answer is None:
-            st.session_state["llm_response"] = fallback_response(
-                hero, query, st.session_state.get("relevant_products", [])
-            )
+            answer = fallback_response(hero, query, st.session_state.get(Key.RELEVANT, []))
+            st.session_state[Key.ANSWER_IS_FALLBACK] = True
+        else:
+            st.session_state[Key.ANSWER_IS_FALLBACK] = False
+        st.session_state[Key.ANSWER] = answer
 
     with st.container(border=True):
-        st.markdown(st.session_state["llm_response"])
-    if st.session_state["llm_fallback"]:
+        st.markdown(st.session_state[Key.ANSWER])
+    if st.session_state[Key.ANSWER_IS_FALLBACK]:
         st.caption("Модель сейчас недоступна, поэтому показан шаблонный ответ по самому релевантному продукту.")
     else:
         st.caption(f"Ответ сгенерирован моделью {MODEL} через Groq.")
 
     st.divider()
-    col1, col2, _ = st.columns([1, 1, 2])
-    col1.button("Назад к поиску", on_click=go, args=("rag_simulation",), use_container_width=True)
-    col2.button("Начать заново", on_click=restart, use_container_width=True)
+    back_col, restart_col, _ = st.columns([1, 1, 2])
+    back_col.button("Назад к поиску", on_click=go, args=("rag_simulation",), use_container_width=True)
+    restart_col.button("Начать заново", on_click=restart, use_container_width=True)
