@@ -1,119 +1,91 @@
-# Сундук Мудрости
+[**English**](README.md) · [Русский](README.ru.md)
 
-Финансовый советник Княжеского банка — RAG-пайплайн в декорациях русской сказки. Богатыри и
-царицы приходят в банк с финансовой целью, система подбирает им подходящие продукты и просит
-языковую модель сформулировать совет. На каждом шаге видно, что происходит под капотом: какие
-продукты отсеялись, что нашёл поиск и какой промпт ушёл в модель.
+# The Wisdom Chest · Сундук Мудрости
 
-**Демо:** https://fairy-financial-rag-demo.streamlit.app/
+A fairy-tale bank advisor you can look inside. Pick a character, ask a financial question, and watch a small retrieval-augmented generation (RAG) pipeline decide which fictional products the character is allowed to see, find the relevant ones, and build an answer.
 
-Бесплатный Streamlit усыпляет приложение, если в него давно не заходили, — тогда нажмите
-«Yes, get this app back up!», оно проснётся примерно за минуту. Первый поиск после пробуждения
-дольше обычного: скачивается и загружается модель эмбеддингов.
+**[Open the live demo](https://fairy-financial-rag-demo.streamlit.app/)** · All characters, products, rates, and advice are fictional.
 
-## Как это работает
+![The Wisdom Chest welcome screen](docs/screenshots/intro.png)
 
+Streamlit Community Cloud may put the demo to sleep between visits. If it offers to wake the app, the first search can take longer while the embedding model loads.
+
+## Try it in two minutes
+
+1. Click **Начать** (“Start”) and use the demo character profiles.
+2. Enter `3333` to play as Ilya Muromets, or `5555` as Yuliy the Horse. Yuliy is 12, so the eligibility filter has opinions about retirement products.
+3. Ask, for example, **«Нужен заём на нового коня»** (“I need a loan for a new horse”).
+4. Load the demo bank catalogue, then follow the rule filter, product search, prompt, and final answer.
+
+The screens deliberately show the working: rejected products and reasons, the search method and scores, what is stored in Chroma, and the exact prompt sent to the language model. There is no hidden “AI magic” step.
+
+## What happens under the lid
+
+```text
+character + question                 fictional product catalogue
+          │                                      │
+          └──────────────┬───────────────────────┘
+                         ▼
+           eligibility rules (age, income, citizenship)
+                         ▼
+           semantic retrieval of up to five products
+                         ▼
+           grounded prompt with character details
+                         ▼
+              Groq / gpt-oss-20b answer
+                 or marked template fallback
 ```
-профили героев (JSON) ──► вход по 4 цифрам карты ──► вопрос героя
-                                                         │
-продукты банка (JSON) ──► фильтр по правилам ◄───────────┘
-                          возраст, доход, гражданство
-                                   │ только то, что герою положено
-                                   ▼
-                          поиск похожих продуктов (топ-5)
-                          1. векторная база Chroma: векторы paraphrase-multilingual-
-                             MiniLM-L12-v2, правила — условием where
-                          2. нет chromadb или ошибка → те же векторы в памяти
-                          3. нет модели или ошибка → TF-IDF
-                          4. нет scikit-learn → ключевые слова по типам продуктов
-                                   │
-                                   ▼
-                          промпт: герой, его черты, вопрос, найденные продукты
-                                   │
-                                   ▼
-                          Groq, gpt-oss-20b ──► совет
-                          API недоступен → шаблонный ответ по лучшему продукту
-```
 
-1. **Фильтр по правилам** идёт до поиска, как в настоящих банках: модель не должна советовать
-   то, что герою не положено. Конь Юлий в 12 лет не увидит пенсионный счёт, а Соловею-разбойнику
-   из Лесного Ханства не достанутся продукты только для подданных Княжества.
-2. **Поиск.** Тексты продуктов и вопрос переводятся в векторы многоязычной моделью
-   `sentence-transformers`. Векторы каталога считаются один раз и кэшируются, на каждый вопрос
-   досчитывается только сам вопрос. Каталог целиком лежит в коллекции Chroma (пространство
-   cosine) вместе с метаданными: возраст, доход, гражданство. Поиск ближайших идёт в базе, и
-   правила там же — условием `where`. Главным остаётся фильтр на Python: если база вернёт
-   продукт, который он отсеял, продукт выбрасывается, а тесты сверяют оба фильтра на всех
-   демо-героях. Chroma отдаёт расстояние `1 − cos`, оно переводится обратно в сходство; ниже
-   порога (0.3 для эмбеддингов, 0.05 для TF-IDF) продукт считается не относящимся к вопросу.
-   На экране поиска видно, что лежит в базе: число записей, условие `where` для героя и первые
-   записи с метаданными.
-3. **Промпт.** В него попадают только отобранные продукты и черты героя из профиля. Правила
-   вроде «герою за 60 — отдай должное его мудрости» решаются в коде, а не просьбой к модели.
-4. **Ответ.** Модель `openai/gpt-oss-20b` через Groq. Нет ключа или API не ответил — показывается
-   шаблонный ответ, и приложение прямо об этом пишет.
+- **Rules first.** Ineligible products are removed before retrieval. A second eligibility condition is applied inside Chroma; tests compare it with the Python filter across all demo characters.
+- **Search you can inspect.** The default route uses `paraphrase-multilingual-MiniLM-L12-v2` embeddings and an in-memory Chroma collection with cosine similarity. If a component is unavailable, the app tries in-memory embeddings, TF-IDF, then a keyword search.
+- **A bounded answer.** The model receives only the selected product descriptions, the question, and the character profile. The prompt is visible in the UI. If Groq is unavailable or no key is configured, the app labels its template answer instead of presenting it as model output.
 
-Логика пайплайна лежит в пакете `rag/` и не зависит от Streamlit, экраны в `screens/` только
-показывают шаги.
+The catalogue has **11 characters** and **32 products** in `data/`. You can upload your own JSON files; the app validates the entire file before accepting it. The format and required fields are shown beside each upload step.
 
-## Данные
+## Scope and limitations
 
-`data/heroes.json` — 11 героев, `data/products.json` — 32 продукта: вклады, займы, инвестиции,
-страховка, подписки и другое. Всё выдуманное. В приложении можно загрузить свои файлы, формат
-описан там же; файл проверяется целиком, и если хоть одна запись не подходит, он не загружается.
+This is a portfolio demo of a decision pipeline, not a bank or a source of real financial advice. Its catalogue is small and fictional. Chroma lives only in process memory and is rebuilt for a new catalogue or process restart; a production catalogue would need persistent storage. Similarity thresholds were chosen for the sample questions and may need tuning for other data. The model sees short product descriptions and can still miss details.
 
-## Ограничения
+The new chest illustration is an original storybook character. The playful setting makes the rule filter and retrieval path easier to follow; the actual decisions remain visible at every step.
 
-- Chroma работает в памяти процесса, на диск ничего не пишется. У каждой сессии своя
-  коллекция: все клиенты Chroma в процессе делят одно хранилище, поэтому сессии разводятся по
-  именам коллекций. Коллекция собирается заново при новом каталоге и при перезапуске
-  приложения и удаляется, когда Streamlit закрывает сессию.
-- Для трёх десятков продуктов векторная база избыточна, поиск в памяти дал бы то же самое; она
-  здесь, чтобы показать, как фильтр по правилам переносится в базу. Для тысяч продуктов
-  понадобилось бы постоянное хранилище, а не пересборка на каждую сессию.
-- Данные демонстрационные, ставки и условия не настоящие.
-- Порог сходства подобран на демо-вопросах, на других данных его, скорее всего, придётся
-  подвинуть.
-- Модель видит только короткое описание продукта и может ошибиться в деталях.
+## Run locally
 
-## Запуск локально
-
-Нужен Python 3.11 (на Streamlit Cloud он закреплён в `runtime.txt`).
+Python 3.11 is required (`runtime.txt` pins 3.11.9 for Streamlit Cloud).
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-macos.txt  # macOS; use requirements.txt on Linux
 streamlit run app.py
 ```
 
-`requirements.txt` рассчитан на Streamlit Cloud (Linux, CPU-сборка torch). На macOS поставьте
-`torch` той же версии без суффикса `+cpu`.
+`requirements.txt` pins a Linux CPU PyTorch wheel for Streamlit Cloud; `requirements-macos.txt` uses the standard macOS wheel with the same dependency versions.
 
-Для ответов модели нужен ключ Groq в `.streamlit/secrets.toml` (файл в `.gitignore`):
+For a generated answer, put a Groq key in `.streamlit/secrets.toml` (ignored by Git):
 
 ```toml
-GROQ_API_KEY = "..."
+GROQ_API_KEY = "your-key"
 ```
 
-Без ключа приложение тоже работает — с шаблонными ответами.
+Without a key the full filter and retrieval flow still works; the last screen displays a clearly marked template response.
 
-## Тесты
+## Tests and code map
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
 ```
 
-Тесты покрывают проверку JSON, фильтр, поиск, векторную базу (совпадение её фильтра и
-результатов с поиском в памяти, отдельные коллекции, запасной путь без chromadb) и сборку
-промпта, плюс сквозной прогон приложения через `streamlit.testing` без ключа Groq: без модели
-эмбеддингов и с подменной моделью на триграммах через Chroma. Сеть для них не нужна.
+The tests cover JSON validation, eligibility and its Chroma equivalent, retrieval fallbacks, prompt construction, and the Streamlit flow without a live Groq call.
 
-## Стек
+| Path | Purpose |
+| --- | --- |
+| `app.py`, `screens/` | Streamlit story and seven observable steps |
+| `rag/` | Validation, rules, retrieval, vector store, prompt, fallback |
+| `data/` | Fictional characters and bank products |
+| `assets/` | Original chest illustration and visual theme |
+| `tests/` | Pipeline and end-to-end app checks |
 
-Python, Streamlit, sentence-transformers (PyTorch), Chroma, scikit-learn (TF-IDF), Groq API.
+## License
 
-## Лицензия
-
-MIT, см. [`LICENSE`](LICENSE).
+MIT — see [LICENSE](LICENSE).

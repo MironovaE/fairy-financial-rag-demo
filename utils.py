@@ -38,7 +38,7 @@ def restart():
 
 def step_header(screen, title, subtitle=None):
     step = STEPS.index(screen) + 1
-    st.caption(f"Шаг {step} из {len(STEPS)}")
+    st.markdown(f'<p class="fairy-chapter-label">Глава {step} из {len(STEPS)}</p>', unsafe_allow_html=True)
     st.progress(step / len(STEPS))
     st.title(title)
     if subtitle:

@@ -1,4 +1,6 @@
 # streamlit run app.py
+from pathlib import Path
+
 import streamlit as st
 
 from screens import (
@@ -16,19 +18,11 @@ from utils import Key
 st.set_page_config(
     page_title="Сундук Мудрости",
     page_icon="🗝️",
-    layout="centered",
+    layout="wide",
 )
 
-st.markdown(
-    """
-    <style>
-    .block-container { padding-top: 2.5rem; }
-    .subtitle { color: #6f6556; font-size: 1.05rem; margin-top: -0.5rem; }
-    .muted { color: #6f6556; font-size: 0.9rem; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+css = (Path(__file__).resolve().parent / "assets" / "theme.css").read_text(encoding="utf-8")
+st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 SCREENS = {
     "intro": intro.show,

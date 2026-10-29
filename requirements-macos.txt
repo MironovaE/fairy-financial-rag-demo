@@ -1,0 +1,9 @@
+# Same stack as requirements.txt, with the standard macOS PyTorch wheel.
+torch==2.8.0
+streamlit==1.38.0
+groq>=0.13.1,<1
+numpy>=1.26,<3
+scikit-learn==1.5.2
+sentence-transformers==5.1.2
+transformers==4.56.2
+chromadb==1.5.9
